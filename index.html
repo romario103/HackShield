@@ -1,1 +1,128 @@
-<iframe src="https://onedrive.live.com/personal/bc5b26517a91440a/_layouts/15/Doc.aspx?sourcedoc=%7B1fa960a6-6829-4d61-aaac-4bd6669e875e%7D&action=view&redeem=aHR0cHM6Ly8xZHJ2Lm1zL3AvYy9iYzViMjY1MTdhOTE0NDBhL0lRU21ZS2tmS1doaFRhcXNTOVptbm9kZUFVUTZBN29GUEhERjQzM2JSbUhFYmFNP3dkQXI9MS43Nzc3Nzc3Nzc3Nzc3Nzc3JndkUHJldmlldz0x&wdSlideId=263&wdModeSwitchTime=1769273557504" width="476px" height="288px" frameborder="0">Dit is een ingesloten <a target="_blank" href="https://office.com">Microsoft Office</a>-presentatiebestand dat mogelijk is gemaakt met <a target="_blank" href="https://office.com/webapps">Office</a>.</iframe>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Minimal Video Player</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+        }
+        
+        .player-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        #videoPlayer {
+            width: 100%;
+            height: auto;
+            background: #111;
+            margin-bottom: 10px;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        
+        .control-btn {
+            background: #333;
+            color: white;
+            border: none;
+            width: 60px;
+            height: 60px;
+            font-size: 24px;
+            cursor: pointer;
+            border-radius: 50%;
+            transition: background 0.2s;
+        }
+        
+        .control-btn:hover {
+            background: #555;
+        }
+        
+        .control-btn:active {
+            background: #777;
+        }
+        
+        #currentInfo {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 14px;
+            color: #aaa;
+        }
+    </style>
+</head>
+<body>
+    <div class="player-container">
+        <video id="videoPlayer" controls></video>
+        <div class="controls">
+            <button class="control-btn" id="prevBtn">&lt;</button>
+            <button class="control-btn" id="nextBtn">&gt;</button>
+        </div>
+        <div id="currentInfo"></div>
+    </div>
+
+    <script>
+        // Video playlist - pas deze aan naar je eigen video's
+        const videos = [
+            {
+                title: "Video 1",
+                src: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+                loop: false
+            },
+            {
+                title: "Video 2", 
+                src: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+                loop: true
+            },
+            {
+                title: "Video 3",
+                src: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+                loop: false
+            }
+        ];
+
+        const videoPlayer = document.getElementById('videoPlayer');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const currentInfo = document.getElementById('currentInfo');
+        
+        let currentIndex = 0;
+
+        // Laad video
+        function loadVideo(index) {
+            if (index < 0) index = videos.length - 1;
+            if (index >= videos.length) index = 0;
+            
+            currentIndex = index;
+            const video = videos[currentIndex];
+            
+            videoPlayer.src = video.src;
+            videoPlayer.loop = video.loop;
+            currentInfo.textContent = `${video.title} (${video.loop ? '🔁 Loop' : '▶️ Eenmalig'})`;
+            
+            videoPlayer.load();
+            videoPlayer.play();
+        }
+
+        // Event handlers
+        prevBtn.onclick = () => loadVideo(currentIndex - 1);
+        nextBtn.onclick = () => loadVideo(currentIndex + 1);
+
+        // Automatisch volgende video bij einde (alleen als geen loop)
+        videoPlayer.onended = () => {
+            if (!videos[currentIndex].loop) {
+                loadVideo(currentIndex + 1);
+            }
+        };
+
+        // Start eerste video
+        loadVideo(0);
+    </script>
+</body>
+</html>
