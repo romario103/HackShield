@@ -86,7 +86,7 @@
     
     <div class="controls">
         <button class="control-btn" id="prevBtn">&lt;</button>
-        <button id="pauseBtn">⏸</button>
+        <button class="control-btn" id="pauseBtn">⏸</button>
         <button class="control-btn" id="nextBtn">&gt;</button>
     </div>
     
@@ -296,7 +296,7 @@
 
         // Met knop tekst/icoon update
         function togglePause() {
-            const video = document.getElementById('videoPlayer');
+            const video = document.getElementById('currentVideo');
             const pauseBtn = document.getElementById('pauseBtn');
             
             if (video.paused) {
