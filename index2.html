@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>HackShield - De Talentenfontein (v1.0.2)</title>
+    <title>(v1.0.3) De Talentenfontein</title>
     <style>
         body {
             margin: 0;
@@ -10,8 +10,7 @@
             font-family: monospace;
         }
         
-        .content-container {
-            position: relative;
+        #contentDisplay {
             width: 100%;
             max-width: 1600px;
             height: 900px;
@@ -20,34 +19,21 @@
             overflow: hidden;
         }
         
-        .content-layer {
-            position: absolute;
-            top: 0;
-            left: 0;
+        #contentDisplay video,
+        #contentDisplay iframe {
             width: 100%;
             height: 100%;
-            opacity: 0;
-            transition: opacity 0.3s;
-            border: none;
+            display: block;
         }
         
-        .content-layer.active {
-            opacity: 1;
-            z-index: 2;
-        }
-        
-        .content-layer.preloading {
-            opacity: 0;
-            z-index: 1;
-            pointer-events: none;
-        }
-        
-        video.content-layer {
+        video {
             object-fit: contain;
+            background: #000;
         }
         
-        iframe.content-layer {
-            background: white;
+        iframe {
+            border: none;
+            background: #fff;
         }
         
         .controls {
@@ -72,43 +58,28 @@
             background: #555;
         }
         
-        .status {
-            text-align: center;
-            color: #0f0;
-            margin-top: 10px;
-            font-size: 12px;
-            height: 20px;
+        .control-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
         }
         
         .type-badge {
-            position: absolute;
-            top: 10px;
-            right: 10px;
+            position: fixed;
+            top: 30px;
+            right: 30px;
             padding: 5px 10px;
             background: rgba(0,0,0,0.7);
             color: white;
             border-radius: 5px;
             font-size: 12px;
-            z-index: 10;
+            z-index: 100;
         }
     </style>
 </head>
 <body>
-    <div class="content-container">
-        <!-- Actieve content -->
-        <div id="currentContainer" class="content-layer active">
-            <!-- Hier komt ofwel video of iframe -->
-        </div>
-        
-        <!-- Preload content (volgende) -->
-        <div id="nextContainer" class="content-layer preloading"></div>
-        
-        <!-- Preload content (vorige) -->
-        <div id="prevContainer" class="content-layer preloading"></div>
-        
-        <!-- Type indicator -->
-        <div id="typeBadge" class="type-badge"></div>
-    </div>
+    <div id="contentDisplay"></div>
+    
+    <div class="type-badge" id="typeBadge"></div>
     
     <div class="controls">
         <button class="control-btn" id="prevBtn">&lt;</button>
@@ -117,30 +88,12 @@
     </div>
 
     <script>
-        // Playlist met video's EN webpagina's
+        // Playlist
         const playlist = [
             {
                 title: "Intro",
-                type: "video", // of "iframe"
+                type: "video",
                 src: "Talentenfontein 01.mp4",
-                loop: true
-            },
-            {
-                title: "Intro", 
-                type: "video",
-                src: "Talentenfontein 02.mp4",
-                loop: false
-            },
-            {
-                title: "Webpagina voorbeeld",
-                type: "iframe",
-                src: "https://example.com",
-                loop: false // iframes kunnen niet loop'en, maar we houden de property voor consistentie
-            },
-            {
-                title: "Talent van De Doener",
-                type: "video",
-                src: "Talentenfontein 06.mp4",
                 loop: true
             },
             {
@@ -150,23 +103,15 @@
                 loop: false
             },
             {
-                title: "Talent van De Verbinder",
+                title: "Intro", 
                 type: "video",
-                src: "Talentenfontein 09.mp4",
-                loop: false
-            },
-            {
-                title: "Einde",
-                type: "video",
-                src: "Talentenfontein 14.mp4",
+                src: "Talentenfontein 02.mp4",
                 loop: false
             }
         ];
 
         // DOM elements
-        const currentContainer = document.getElementById('currentContainer');
-        const nextContainer = document.getElementById('nextContainer');
-        const prevContainer = document.getElementById('prevContainer');
+        const contentDisplay = document.getElementById('contentDisplay');
         const prevBtn = document.getElementById('prevBtn');
         const nextBtn = document.getElementById('nextBtn');
         const pauseBtn = document.getElementById('pauseBtn');
@@ -174,9 +119,7 @@
         
         // State
         let currentIndex = 0;
-        let currentElement = null; // Huidige video of iframe element
-        let nextElement = null;    // Volgende element
-        let prevElement = null;    // Vorige element
+        let currentElement = null;
         
         // Helper functies
         function getNextIndex(index) {
@@ -187,65 +130,15 @@
             return (index - 1 + playlist.length) % playlist.length;
         }
         
-        // Maak een element aan op basis van type
-        function createContentElement(item) {
-            if (item.type === "video") {
-                const video = document.createElement('video');
-                video.src = item.src;
-                video.loop = item.loop;
-                video.className = 'content-layer';
-                video.style.width = '100%';
-                video.style.height = '100%';
-                return video;
-            } else if (item.type === "iframe") {
-                const iframe = document.createElement('iframe');
-                iframe.src = item.src;
-                iframe.className = 'content-layer';
-                iframe.style.width = '100%';
-                iframe.style.height = '100%';
-                iframe.frameBorder = "0";
-                iframe.allow = "autoplay; fullscreen";
-                return iframe;
-            }
-            return null;
-        }
-        
-        // Laad content in container
-        function loadContentToContainer(container, index) {
-            // Maak container leeg
-            while (container.firstChild) {
-                container.removeChild(container.firstChild);
-            }
-            
-            const item = playlist[index];
-            const element = createContentElement(item);
-            
-            if (element) {
-                container.appendChild(element);
-                
-                // Voor video's: laad en klaar voor afspelen
-                if (item.type === "video") {
-                    element.load();
-                    
-                    element.onloadeddata = () => {
-                        console.log(`Preloaded: ${item.title} (${item.type})`);
-                    };
-                }
-                // Voor iframes: markeer als geladen wanneer klaar
-                else if (item.type === "iframe") {
-                    element.onload = () => {
-                        console.log(`Preloaded iframe: ${item.title}`);
-                    };
-                }
-            }
-            
-            return element;
-        }
-        
-        // Schakel naar nieuwe content
-        function switchToContent(index) {
+        // Laad en toon content
+        function loadContent(index) {
             currentIndex = index;
             const item = playlist[currentIndex];
+            
+            // Maak display leeg
+            while (contentDisplay.firstChild) {
+                contentDisplay.removeChild(contentDisplay.firstChild);
+            }
             
             // Update type badge
             typeBadge.textContent = item.type.toUpperCase();
@@ -253,95 +146,66 @@
                 ? 'rgba(76, 175, 80, 0.7)' 
                 : 'rgba(33, 150, 243, 0.7)';
             
-            // Maak nieuwe element aan voor current
-            currentContainer.classList.remove('active');
+            // Update pauze knop
+            pauseBtn.disabled = item.type !== "video";
             
-            // Wacht op fade out
-            setTimeout(() => {
-                // Verwijder oude content
-                while (currentContainer.firstChild) {
-                    currentContainer.removeChild(currentContainer.firstChild);
-                }
+            // Maak nieuw element
+            if (item.type === "video") {
+                currentElement = document.createElement('video');
+                currentElement.src = item.src;
+                currentElement.loop = item.loop;
+                currentElement.autoplay = true;
+                currentElement.controls = false;
+                currentElement.style.width = '100%';
+                currentElement.style.height = '100%';
                 
-                // Voeg nieuwe content toe
-                const newElement = createContentElement(item);
-                currentContainer.appendChild(newElement);
-                currentElement = newElement;
+                // Ended event
+                currentElement.onended = () => {
+                    if (!item.loop) {
+                        next();
+                    }
+                };
                 
-                // Voor video's: speel af
-                if (item.type === "video") {
-                    currentElement.play().catch(e => {
-                        console.log("Autoplay blocked, user must click");
-                    });
-                    
-                    // Update pauze knop status
-                    pauseBtn.disabled = false;
-                    pauseBtn.style.opacity = "1";
-                    
-                    // Setup ended event voor video's
-                    currentElement.onended = () => {
-                        if (!item.loop) {
-                            console.log("Video ended, auto-next");
-                            setTimeout(next, 100);
-                        }
-                    };
-                } 
-                // Voor iframes: disable pauze knop
-                else if (item.type === "iframe") {
-                    pauseBtn.disabled = true;
-                    pauseBtn.style.opacity = "0.5";
-                }
+                // Play/pause events
+                currentElement.addEventListener('play', () => {
+                    pauseBtn.textContent = '⏸';
+                });
                 
-                // Fade in
-                currentContainer.classList.add('active');
+                currentElement.addEventListener('pause', () => {
+                    pauseBtn.textContent = '▶';
+                });
                 
-                console.log(`Switched to: ${item.title} (${item.type}, index: ${currentIndex})`);
-                
-                // Preload nieuwe adjacent content
-                preloadAdjacentContent();
-                
-            }, 300); // Match de CSS transition tijd
+            } else if (item.type === "iframe") {
+                currentElement = document.createElement('iframe');
+                currentElement.src = item.src;
+                currentElement.style.width = '100%';
+                currentElement.style.height = '100%';
+                currentElement.frameBorder = "0";
+            }
+            
+            // Voeg toe aan display
+            contentDisplay.appendChild(currentElement);
+            
+            console.log(`Loaded: ${item.title} (${item.type})`);
         }
         
-        // Preload vorige en volgende content
-        function preloadAdjacentContent() {
-            const nextIdx = getNextIndex(currentIndex);
-            const prevIdx = getPrevIndex(currentIndex);
-            
-            // Preload volgende
-            while (nextContainer.firstChild) {
-                nextContainer.removeChild(nextContainer.firstChild);
-            }
-            nextElement = loadContentToContainer(nextContainer, nextIdx);
-            
-            // Preload vorige
-            while (prevContainer.firstChild) {
-                prevContainer.removeChild(prevContainer.firstChild);
-            }
-            prevElement = loadContentToContainer(prevContainer, prevIdx);
-        }
-        
-        // Naar volgende content
+        // Naar volgende
         function next() {
-            const nextIdx = getNextIndex(currentIndex);
-            switchToContent(nextIdx);
+            loadContent(getNextIndex(currentIndex));
         }
         
-        // Naar vorige content
+        // Naar vorige
         function prev() {
-            const prevIdx = getPrevIndex(currentIndex);
-            switchToContent(prevIdx);
+            loadContent(getPrevIndex(currentIndex));
         }
         
-        // Pauzeer/speel video
+        // Pauzeer/speel
         function togglePause() {
             if (currentElement && playlist[currentIndex].type === "video") {
                 if (currentElement.paused) {
                     currentElement.play();
-                    pauseBtn.textContent = '⏸';
                 } else {
                     currentElement.pause();
-                    pauseBtn.textContent = '▶';
                 }
             }
         }
@@ -351,39 +215,18 @@
         nextBtn.onclick = next;
         pauseBtn.onclick = togglePause;
         
-        // Toetsenbord shortcuts
-        document.onkeydown = (e) => {
+        // Keyboard
+        document.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowLeft') prev();
             if (e.key === 'ArrowRight') next();
             if (e.key === ' ' && playlist[currentIndex].type === "video") {
                 e.preventDefault();
                 togglePause();
             }
-        };
-        
-        // Update pauze knop wanneer video pauzeert/speelt
-        function setupVideoListeners(videoElement) {
-            if (!videoElement) return;
-            
-            videoElement.addEventListener('play', function() {
-                pauseBtn.textContent = '⏸';
-            });
-            
-            videoElement.addEventListener('pause', function() {
-                pauseBtn.textContent = '▶';
-            });
-        }
-        
-        // Initialize
-        function init() {
-            // Laad eerste content
-            switchToContent(0);
-            
-            console.log("Player initialized with video/iframe support");
-        }
+        });
         
         // Start
-        init();
+        loadContent(0);
     </script>
 </body>
 </html>
