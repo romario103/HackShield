@@ -1,33 +1,51 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>HackShield</title>
+    <title>HackShield - De Talentenfontein</title>
     <style>
         body {
             margin: 0;
             padding: 20px;
-            background: black;
-            color: white;
-            font-family: Arial, sans-serif;
+            background: #000;
+            font-family: monospace;
         }
         
-        .player-container {
-            max-width: 1600px;
-            margin: 0 auto;
-        }
-        
-        #videoPlayer {
+        .video-container {
+            position: relative;
             width: 100%;
-            height: auto;
-            background: white;
-            background-color: white !important;
-            margin-bottom: 10px;
+            max-width: 800px;
+            height: 450px;
+            margin: 0 auto;
+            background: #111;
+            overflow: hidden;
+        }
+        
+        .video-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            transition: opacity 0.3s;
+            object-fit: contain;
+        }
+        
+        .video-layer.active {
+            opacity: 1;
+            z-index: 2;
+        }
+        
+        .video-layer.preloading {
+            opacity: 0;
+            z-index: 1;
         }
         
         .controls {
             display: flex;
-            gap: 10px;
             justify-content: center;
+            gap: 20px;
+            margin-top: 20px;
         }
         
         .control-btn {
@@ -39,37 +57,42 @@
             font-size: 24px;
             cursor: pointer;
             border-radius: 50%;
-            transition: background 0.2s;
         }
         
         .control-btn:hover {
             background: #555;
         }
         
-        .control-btn:active {
-            background: #777;
-        }
-        
-        #currentInfo {
+        .status {
             text-align: center;
+            color: #0f0;
             margin-top: 10px;
-            font-size: 14px;
-            color: #aaa;
+            font-size: 12px;
+            height: 20px;
         }
     </style>
 </head>
 <body>
-    <div class="player-container">
-        <video id="videoPlayer" controls></video>
-        <div class="controls">
-            <button class="control-btn" id="prevBtn">&lt;</button>
-            <button class="control-btn" id="nextBtn">&gt;</button>
-        </div>
-        <!-- div id="currentInfo"></div -->
+    <div class="video-container">
+        <!-- Actieve video -->
+        <video class="video-layer active" id="currentVideo"></video>
+        
+        <!-- Preload video (volgende) -->
+        <video class="video-layer preloading" id="nextVideo" preload="auto"></video>
+        
+        <!-- Preload video (vorige) -->
+        <video class="video-layer preloading" id="prevVideo" preload="auto"></video>
     </div>
+    
+    <div class="controls">
+        <button class="control-btn" id="prevBtn">&lt;</button>
+        <button class="control-btn" id="nextBtn">&gt;</button>
+    </div>
+    
+    <div class="status" id="status"></div>
 
     <script>
-        // Video playlist - pas deze aan naar je eigen video's
+        // Video playlist
         const videos = [
             {
                 title: "Intro",
@@ -148,42 +171,161 @@
             }
         ];
 
-        const videoPlayer = document.getElementById('videoPlayer');
+        // DOM elements
+        const currentVideo = document.getElementById('currentVideo');
+        const nextVideo = document.getElementById('nextVideo');
+        const prevVideo = document.getElementById('prevVideo');
         const prevBtn = document.getElementById('prevBtn');
         const nextBtn = document.getElementById('nextBtn');
-        const currentInfo = document.getElementById('currentInfo');
+        const status = document.getElementById('status');
         
+        // State
         let currentIndex = 0;
-
-        // Laad video
-        function loadVideo(index) {
-            if (index < 0) index = videos.length - 1;
-            if (index >= videos.length) index = 0;
-            
-            currentIndex = index;
-            const video = videos[currentIndex];
-            
-            videoPlayer.src = video.src;
-            videoPlayer.loop = video.loop;
-            //currentInfo.textContent = `${video.title} (${video.loop ? '🔁 Loop' : '▶️ Eenmalig'})`;
-            
-            videoPlayer.load();
-            videoPlayer.play();
+        
+        // Bereken indexen met wrap-around
+        function getNextIndex(index) {
+            return (index + 1) % videos.length;
         }
-
-        // Event handlers
-        prevBtn.onclick = () => loadVideo(currentIndex - 1);
-        nextBtn.onclick = () => loadVideo(currentIndex + 1);
-
-        // Automatisch volgende video bij einde (alleen als geen loop)
-        videoPlayer.onended = () => {
+        
+        function getPrevIndex(index) {
+            return (index - 1 + videos.length) % videos.length;
+        }
+        
+        // Update status display
+        function updateStatus() {
+            const nextIdx = getNextIndex(currentIndex);
+            const prevIdx = getPrevIndex(currentIndex);
+            status.textContent = `Huidig: ${currentIndex + 1} | Volgende: ${nextIdx + 1} (${nextVideo.readyState}) | Vorige: ${prevIdx + 1} (${prevVideo.readyState})`;
+        }
+        
+        // Laad video in element
+        function loadVideoToElement(element, index) {
+            const video = videos[index];
+            element.src = video.src;
+            element.loop = video.loop;
+            element.load(); // Forceer preloading
+            
+            // Log wanneer video klaar is
+            element.onloadeddata = () => {
+                console.log(`Preloaded: ${video.title} (${video.loop ? 'loop' : 'once'})`);
+                updateStatus();
+            };
+            
+            element.onerror = () => {
+                console.error(`Fout bij laden: ${video.title}`);
+            };
+        }
+        
+        // Schakel tussen video's met crossfade
+        function switchToVideo(index) {
+            const oldIndex = currentIndex;
+            currentIndex = index;
+            
+            // Update actieve video
+            const video = videos[currentIndex];
+            currentVideo.src = video.src;
+            currentVideo.loop = video.loop;
+            currentVideo.currentTime = 0;
+            
+            // Herstart preloads voor nieuwe positie
+            preloadAdjacentVideos();
+            
+            // Speel nieuwe video
+            currentVideo.play().catch(e => {
+                console.log("Autoplay blocked, user must click");
+            });
+            
+            // Log
+            console.log(`Switched to: ${video.title} (index: ${currentIndex})`);
+            updateStatus();
+        }
+        
+        // Preload vorige en volgende video
+        function preloadAdjacentVideos() {
+            const nextIdx = getNextIndex(currentIndex);
+            const prevIdx = getPrevIndex(currentIndex);
+            
+            loadVideoToElement(nextVideo, nextIdx);
+            loadVideoToElement(prevVideo, prevIdx);
+        }
+        
+        // Naar volgende video (gebruik preloaded video)
+        function next() {
+            const nextIdx = getNextIndex(currentIndex);
+            
+            // Wissel videos - maak nextVideo de actieve
+            [currentVideo.src, nextVideo.src] = [nextVideo.src, currentVideo.src];
+            [currentVideo.loop, nextVideo.loop] = [nextVideo.loop, currentVideo.loop];
+            
+            // Reset tijd en speel
+            currentVideo.currentTime = 0;
+            currentVideo.play();
+            
+            // Update index
+            currentIndex = nextIdx;
+            
+            // Preload nieuwe adjacente videos
+            preloadAdjacentVideos();
+            
+            console.log(`Next: ${videos[currentIndex].title}`);
+            updateStatus();
+        }
+        
+        // Naar vorige video (gebruik preloaded video)
+        function prev() {
+            const prevIdx = getPrevIndex(currentIndex);
+            
+            // Wissel videos - maak prevVideo de actieve
+            [currentVideo.src, prevVideo.src] = [prevVideo.src, currentVideo.src];
+            [currentVideo.loop, prevVideo.loop] = [prevVideo.loop, currentVideo.loop];
+            
+            // Reset tijd en speel
+            currentVideo.currentTime = 0;
+            currentVideo.play();
+            
+            // Update index
+            currentIndex = prevIdx;
+            
+            // Preload nieuwe adjacente videos
+            preloadAdjacentVideos();
+            
+            console.log(`Prev: ${videos[currentIndex].title}`);
+            updateStatus();
+        }
+        
+        // Event listeners
+        prevBtn.onclick = prev;
+        nextBtn.onclick = next;
+        
+        // Automatisch volgende bij einde (geen loop)
+        currentVideo.onended = () => {
             if (!videos[currentIndex].loop) {
-                loadVideo(currentIndex + 1);
+                console.log("Video ended, auto-next");
+                setTimeout(next, 100); // Kleine delay voor betere UX
             }
         };
-
-        // Start eerste video
-        loadVideo(0);
+        
+        // Toetsenbord shortcuts
+        document.onkeydown = (e) => {
+            if (e.key === 'ArrowLeft') prev();
+            if (e.key === 'ArrowRight') next();
+        };
+        
+        // Initialize
+        function init() {
+            // Laad eerste video
+            loadVideoToElement(currentVideo, 0);
+            currentVideo.play();
+            
+            // Preload volgende en vorige
+            preloadAdjacentVideos();
+            
+            console.log("Player initialized with preloading");
+            updateStatus();
+        }
+        
+        // Start
+        init();
     </script>
 </body>
 </html>
