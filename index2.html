@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Seamless Video Player</title>
+    <style>
+        body { margin: 0; padding: 20px; background: #000; }
+        .container { max-width: 800px; margin: 0 auto; }
+        video { width: 100%; display: block; background: #111; }
+        .controls { display: flex; gap: 10px; margin-top: 10px; justify-content: center; }
+        button { padding: 15px 25px; font-size: 18px; }
+        .buffer-info { color: #0f0; text-align: center; margin-top: 5px; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <video id="mainVideo" controls></video>
+        <video id="bufferVideo" style="display:none" preload="auto"></video>
+        
+        <div class="controls">
+            <button onclick="prevVideo()">&lt;</button>
+            <button onclick="nextVideo()">&gt;</button>
+        </div>
+        <div class="buffer-info" id="bufferInfo"></div>
+    </div>
+
+    <script>
+        const videos = [
+            {src: "video1.mp4", loop: false},
+            {src: "video2.mp4", loop: true},
+            {src: "video3.mp4", loop: false}
+        ];
+        
+        const mainVideo = document.getElementById('mainVideo');
+        const bufferVideo = document.getElementById('bufferVideo');
+        const bufferInfo = document.getElementById('bufferInfo');
+        
+        let currentIndex = 0;
+        let bufferedNext = null;
+        let bufferedPrev = null;
+        
+        // Buffer management
+        function bufferVideoAt(index) {
+            const video = videos[index];
+            const tempVideo = document.createElement('video');
+            tempVideo.src = video.src;
+            tempVideo.preload = 'auto';
+            tempVideo.load();
+            
+            tempVideo.onloadeddata = () => {
+                console.log(`Buffered: ${video.src}`);
+                if (index === getNextIndex(currentIndex)) bufferedNext = tempVideo;
+                if (index === getPrevIndex(currentIndex)) bufferedPrev = tempVideo;
+                updateBufferInfo();
+            };
+        }
+        
+        function getNextIndex(i) { return (i + 1) % videos.length; }
+        function getPrevIndex(i) { return (i - 1 + videos.length) % videos.length; }
+        
+        function updateBufferInfo() {
+            const info = `Buffered: ${bufferedNext ? '✓' : '✗'} next | ${bufferedPrev ? '✓' : '✗'} prev`;
+            bufferInfo.textContent = info;
+        }
+        
+        // Video switching met buffering
+        function switchToVideo(index) {
+            currentIndex = index;
+            const video = videos[index];
+            
+            // Gebruik gebufferde video als beschikbaar
+            if (index === getNextIndex(currentIndex - 1) && bufferedNext) {
+                swapVideoElements(mainVideo, bufferedNext);
+                bufferedNext = null;
+            } else if (index === getPrevIndex(currentIndex + 1) && bufferedPrev) {
+                swapVideoElements(mainVideo, bufferedPrev);
+                bufferedPrev = null;
+            } else {
+                // Fallback: direct laden
+                mainVideo.src = video.src;
+                mainVideo.loop = video.loop;
+                mainVideo.load();
+            }
+            
+            mainVideo.play();
+            
+            // Buffer nieuwe adjacent videos
+            bufferVideoAt(getNextIndex(index));
+            bufferVideoAt(getPrevIndex(index));
+            
+            updateBufferInfo();
+        }
+        
+        function swapVideoElements(target, source) {
+            target.src = source.src;
+            target.loop = source.loop;
+            target.currentTime = 0;
+            target.load();
+        }
+        
+        function nextVideo() { switchToVideo(getNextIndex(currentIndex)); }
+        function prevVideo() { switchToVideo(getPrevIndex(currentIndex)); }
+        
+        // Initialize
+        mainVideo.src = videos[0].src;
+        mainVideo.loop = videos[0].loop;
+        bufferVideoAt(getNextIndex(0));
+        bufferVideoAt(getPrevIndex(0));
+        
+        mainVideo.onended = () => {
+            if (!videos[currentIndex].loop) {
+                setTimeout(nextVideo, 100);
+            }
+        };
+        
+        // Keyboard
+        document.onkeydown = (e) => {
+            if (e.key === 'ArrowLeft') prevVideo();
+            if (e.key === 'ArrowRight') nextVideo();
+        };
+    </script>
+</body>
+</html>
