@@ -89,8 +89,10 @@
         <button class="control-btn" id="pauseBtn">⏸</button>
         <button class="control-btn" id="nextBtn">&gt;</button>
     </div>
-    
+
+    <!--
     <div class="status" id="status"></div>
+    -->
 
     <script>
         // Video playlist
@@ -178,7 +180,7 @@
         const prevVideo = document.getElementById('prevVideo');
         const prevBtn = document.getElementById('prevBtn');
         const nextBtn = document.getElementById('nextBtn');
-        const status = document.getElementById('status');
+        //const status = document.getElementById('status');
         
         // State
         let currentIndex = 0;
@@ -194,9 +196,9 @@
         
         // Update status display
         function updateStatus() {
-            const nextIdx = getNextIndex(currentIndex);
-            const prevIdx = getPrevIndex(currentIndex);
-            status.textContent = `Huidig: ${currentIndex + 1} | Volgende: ${nextIdx + 1} (${nextVideo.readyState}) | Vorige: ${prevIdx + 1} (${prevVideo.readyState})`;
+            //const nextIdx = getNextIndex(currentIndex);
+            //const prevIdx = getPrevIndex(currentIndex);
+            //status.textContent = `Huidig: ${currentIndex + 1} | Volgende: ${nextIdx + 1} (${nextVideo.readyState}) | Vorige: ${prevIdx + 1} (${prevVideo.readyState})`;
         }
         
         // Laad video in element
