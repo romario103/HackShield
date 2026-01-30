@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>(v1.0.2) Iframe Dashboard</title>
+    <title>(v1.0.4) Iframe Dashboard</title>
     <style>
         * {
             margin: 0;
@@ -78,7 +78,7 @@
             left: 0;
             right: 0;
             bottom: 0;
-            border: 8px solid #4a6fa5;
+            border: 8px solid #4a6fa5; /* Blauwe rand */
             border-radius: 12px;
             pointer-events: none;
             z-index: 2;
@@ -90,6 +90,37 @@
             border-color: #2a4a7e;
             border-width: 10px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        }
+        
+        /* Achtergrondkleur voor thumbnail (lichter blauw dan de rand) */
+        .thumbnail-background {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            right: 8px;
+            bottom: 8px;
+            background-color: #7fa3d6; /* Lichter blauw dan border #4a6fa5 */
+            border-radius: 8px;
+            z-index: 1;
+            pointer-events: none;
+        }
+        
+        /* Titel voor thumbnails */
+        .thumbnail-title {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+            z-index: 3;
+            pointer-events: none;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            padding: 5px 10px;
+            background-color: rgba(74, 111, 165, 0.3);
+            border-radius: 4px;
         }
     </style>
 </head>
@@ -164,6 +195,16 @@
                     wrapper.className = 'thumbnail-wrapper';
                     wrapper.dataset.index = i;
                     
+                    // Achtergrondkleur
+                    const background = document.createElement('div');
+                    background.className = 'thumbnail-background';
+                    
+                    // Titel
+                    const title = document.createElement('div');
+                    title.className = 'thumbnail-title';
+                    title.textContent = config.iframes[i].title;
+                    
+                    // Border
                     const border = document.createElement('div');
                     border.className = 'thumbnail-border';
                     
@@ -172,6 +213,8 @@
                         switchIframe(i);
                     });
                     
+                    wrapper.appendChild(background);
+                    wrapper.appendChild(title);
                     wrapper.appendChild(border);
                     thumbnailsArea.appendChild(wrapper);
                 }
@@ -211,7 +254,7 @@
                 mainIframe.style.display = 'block';
                 mainIframe.style.pointerEvents = 'auto';
                 
-                // Thumbnail iframes
+                // Thumbnail iframes - we verbergen ze omdat we de achtergrond en titel tonen
                 const wrappers = document.querySelectorAll('.thumbnail-wrapper');
                 
                 wrappers.forEach((wrapper) => {
@@ -220,15 +263,8 @@
                     
                     if (iframeIndex >= 0 && iframeIndex < iframes.length) {
                         const iframe = iframes[iframeIndex];
-                        const wrapperRect = wrapper.getBoundingClientRect();
-                        
-                        iframe.className = 'iframe thumbnail';
-                        iframe.style.top = (wrapperRect.top + 8) + 'px';
-                        iframe.style.left = (wrapperRect.left + 8) + 'px';
-                        iframe.style.width = Math.max(0, wrapperRect.width - 16) + 'px';
-                        iframe.style.height = Math.max(0, wrapperRect.height - 16) + 'px';
-                        iframe.style.display = 'block';
-                        iframe.style.pointerEvents = 'none';
+                        // Verberg de iframe voor thumbnails - we tonen alleen achtergrond en titel
+                        iframe.style.display = 'none';
                     }
                 });
             }
