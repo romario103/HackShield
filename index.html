@@ -1,26 +1,375 @@
 <!DOCTYPE html>
-<html>
+<html lang="nl">
 <head>
-    <title>HackShield - De Talentenfontein (v1.0.1)</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>(v1.0.0) Iframe Dashboard</title>
     <style>
-        .video-container {
-          background-color: #2ecc71; /* Groene achtergrond */
-          display: inline-block;
-          padding: 0; /* Zorg dat er geen padding is */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
         
-        .video-container video {
-          display: block; /* Verwijdert witruimte onder het element */
+        body {
+            background-color: white;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        
+        .controls {
+            padding: 15px;
+            background: #f5f5f5;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            height: 70px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .ratio-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .ratio-control label {
+            font-weight: bold;
+        }
+        
+        .ratio-control input {
+            width: 60px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .ratio-control button {
+            padding: 8px 15px;
+            background: #4a6fa5;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .ratio-control button:hover {
+            background: #2a4a7e;
+        }
+        
+        .main-container {
+            height: calc(100vh - 70px);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        #main-area {
+            margin: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            background: #f9f9f9;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        #thumbnails-area {
+            margin: 0 10px 10px 10px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            position: relative;
+            flex-shrink: 0;
+        }
+        
+        /* Alle iframes in DOM */
+        .iframe {
+            position: absolute;
+            border: none;
+            background: white;
+        }
+        
+        /* Hoofd iframe */
+        .iframe.main {
+            border-radius: 6px;
+            z-index: 10;
+        }
+        
+        /* Thumbnail iframe */
+        .iframe.thumbnail {
+            border-radius: 10px;
+            z-index: 5;
+            pointer-events: none;
+        }
+        
+        /* Thumbnail wrapper - nu volledig klikbaar */
+        .thumbnail-wrapper {
+            position: relative;
+            height: 100%;
+            cursor: pointer;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        /* Dikke border voor thumbnails */
+        .thumbnail-border {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border: 8px solid #4a6fa5;
+            border-radius: 12px;
+            pointer-events: none;
+            z-index: 2;
+            transition: all 0.2s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .thumbnail-wrapper:hover .thumbnail-border {
+            border-color: #2a4a7e;
+            border-width: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        }
+        
+        .info {
+            color: #666;
+            font-size: 0.9em;
+            margin-left: auto;
+        }
+        
+        /* Debug info */
+        .debug {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 1000;
         }
     </style>
 </head>
 <body>
-
-    <div class="video-container">
-      <video controls>
-        <source src="TalentenFontein\Talentenfontein 01.mp4" type="video/m4">
-      </video>
+    <div class="controls">
+        <div class="ratio-control">
+            <label>Hoogte ratio:</label>
+            <input type="number" id="ratio-input" min="10" max="90" value="90">
+            <button id="apply-ratio">Toepassen</button>
+            <span id="ratio-display">(90% boven, 10% onder)</span>
+        </div>
+        <div class="info">
+            Klik op een thumbnail om deze naar boven te verplaatsen
+        </div>
     </div>
     
+    <div class="main-container">
+        <div id="main-area"></div>
+        <div id="thumbnails-area"></div>
+    </div>
+    
+    <div class="debug" id="debug-info">
+        Status: Geladen<br>
+        Hoofd iframe: 0
+    </div>
+
+    <script>
+        // JSON configuratie - alleen Wikipedia pagina's
+        const config = {
+            ratio: 90,
+            iframes: [
+                { 
+                    id: 1, 
+                    title: "Wikipedia NL", 
+                    url: "https://nl.wikipedia.org/wiki/Hoofdpagina" 
+                },
+                { 
+                    id: 2, 
+                    title: "Wikipedia EN", 
+                    url: "https://en.wikipedia.org/wiki/Main_Page" 
+                },
+                { 
+                    id: 3, 
+                    title: "Wikipedia DE", 
+                    url: "https://de.wikipedia.org/wiki/Wikipedia:Hauptseite" 
+                },
+                { 
+                    id: 4, 
+                    title: "Wikipedia FR", 
+                    url: "https://fr.wikipedia.org/wiki/Wikip%C3%A9dia:Accueil_principal" 
+                }
+            ]
+        };
+
+        let iframes = [];
+        let mainIndex = 0;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const mainArea = document.getElementById('main-area');
+            const thumbnailsArea = document.getElementById('thumbnails-area');
+            const ratioInput = document.getElementById('ratio-input');
+            const ratioDisplay = document.getElementById('ratio-display');
+            const applyBtn = document.getElementById('apply-ratio');
+            const mainContainer = document.querySelector('.main-container');
+            const debugInfo = document.getElementById('debug-info');
+            
+            // Update debug info
+            function updateDebugInfo() {
+                debugInfo.innerHTML = `
+                    Status: Actief<br>
+                    Hoofd iframe: ${mainIndex} (${config.iframes[mainIndex].title})<br>
+                    Thumbnails: ${config.iframes.map((f, i) => 
+                        i === mainIndex ? '' : `${i}:${f.title}`
+                    ).filter(Boolean).join(', ')}
+                `;
+            }
+            
+            // Maak alle iframes aan
+            config.iframes.forEach((frame, index) => {
+                const iframe = document.createElement('iframe');
+                iframe.className = 'iframe';
+                iframe.src = frame.url;
+                iframe.title = frame.title;
+                iframe.dataset.id = frame.id;
+                iframe.dataset.index = index;
+                
+                document.body.appendChild(iframe);
+                iframes.push(iframe);
+            });
+            
+            // Maak thumbnail wrappers
+            function createThumbnailWrappers() {
+                // Verwijder bestaande wrappers
+                thumbnailsArea.innerHTML = '';
+                
+                // Maak wrappers voor alle iframes behalve de huidige main
+                for (let i = 0; i < config.iframes.length; i++) {
+                    if (i === mainIndex) continue; // Skip hoofd iframe
+                    
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'thumbnail-wrapper';
+                    wrapper.dataset.index = i;
+                    
+                    const border = document.createElement('div');
+                    border.className = 'thumbnail-border';
+                    
+                    // Directe klik event
+                    wrapper.addEventListener('click', function() {
+                        console.log(`Klik op thumbnail met index: ${i}`);
+                        switchIframe(i);
+                    });
+                    
+                    wrapper.appendChild(border);
+                    thumbnailsArea.appendChild(wrapper);
+                }
+            }
+            
+            // Initialiseer wrappers
+            createThumbnailWrappers();
+            updateLayout();
+            
+            // Ratio wijzigen
+            function updateRatio() {
+                const ratio = parseInt(ratioInput.value);
+                if (ratio >= 10 && ratio <= 90) {
+                    config.ratio = ratio;
+                    ratioDisplay.textContent = `(${ratio}% boven, ${100-ratio}% onder)`;
+                    updateLayout();
+                } else {
+                    alert('Voer een getal tussen 10 en 90 in');
+                    ratioInput.value = config.ratio;
+                }
+            }
+            
+            applyBtn.addEventListener('click', updateRatio);
+            ratioInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') updateRatio();
+            });
+            
+            // Update layout
+            function updateLayout() {
+                const containerHeight = mainContainer.clientHeight;
+                
+                // Bereken hoogtes
+                const mainHeight = Math.max(50, (containerHeight * config.ratio / 100) - 20);
+                const thumbHeight = Math.max(80, (containerHeight * (100 - config.ratio) / 100) - 20);
+                
+                // Stel hoogtes in
+                mainArea.style.height = mainHeight + 'px';
+                thumbnailsArea.style.height = thumbHeight + 'px';
+                
+                // Herpositioneer iframes
+                setTimeout(positionIframes, 10);
+            }
+            
+            // Positioneer alle iframes
+            function positionIframes() {
+                const mainRect = mainArea.getBoundingClientRect();
+                
+                // Hoofd iframe
+                const mainIframe = iframes[mainIndex];
+                mainIframe.className = 'iframe main';
+                mainIframe.style.top = mainRect.top + 'px';
+                mainIframe.style.left = mainRect.left + 'px';
+                mainIframe.style.width = mainRect.width + 'px';
+                mainIframe.style.height = mainRect.height + 'px';
+                mainIframe.style.display = 'block';
+                mainIframe.style.pointerEvents = 'auto';
+                
+                // Thumbnail iframes
+                const wrappers = document.querySelectorAll('.thumbnail-wrapper');
+                console.log(`Aantal wrappers: ${wrappers.length}`);
+                
+                wrappers.forEach((wrapper, wrapperIndex) => {
+                    // De iframe index staat op de wrapper
+                    const iframeIndex = parseInt(wrapper.dataset.index);
+                    console.log(`Wrapper ${wrapperIndex} -> Iframe ${iframeIndex}`);
+                    
+                    if (iframeIndex >= 0 && iframeIndex < iframes.length) {
+                        const iframe = iframes[iframeIndex];
+                        const wrapperRect = wrapper.getBoundingClientRect();
+                        
+                        iframe.className = 'iframe thumbnail';
+                        iframe.style.top = (wrapperRect.top + 8) + 'px';
+                        iframe.style.left = (wrapperRect.left + 8) + 'px';
+                        iframe.style.width = Math.max(0, wrapperRect.width - 16) + 'px';
+                        iframe.style.height = Math.max(0, wrapperRect.height - 16) + 'px';
+                        iframe.style.display = 'block';
+                        iframe.style.pointerEvents = 'none';
+                    }
+                });
+                
+                updateDebugInfo();
+            }
+            
+            // Switch iframe - SIMPELE VERSIE
+            function switchIframe(newMainIndex) {
+                console.log(`=== SWITCH VAN ${mainIndex} NAAR ${newMainIndex} ===`);
+                
+                // Update hoofd index
+                mainIndex = newMainIndex;
+                
+                // Maak nieuwe wrappers
+                createThumbnailWrappers();
+                
+                // Herpositioneer iframes
+                positionIframes();
+                
+                console.log(`Switch voltooid. Nieuw hoofd iframe: ${mainIndex}`);
+            }
+            
+            // Bij resize
+            window.addEventListener('resize', updateLayout);
+            
+            // Initial positionering
+            setTimeout(() => {
+                updateLayout();
+                console.log('Dashboard geladen met 4 Wikipedia iframes');
+                console.log('Iframe indices: 0=NL, 1=EN, 2=DE, 3=FR');
+            }, 100);
+        });
+    </script>
 </body>
 </html>
