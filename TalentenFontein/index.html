@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>(v1.1.0) Talentenfontein</title>
+    <title>(v1.1.1) Talentenfontein</title>
     <style>
         * {
             margin: 0;
@@ -21,6 +21,7 @@
             min-height: 100vh;
             overflow: hidden;
             position: relative;
+            user-select: none;
         }
         
         .container {
@@ -71,18 +72,27 @@
         
         .controls {
             position: fixed;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
             display: flex;
             justify-content: center;
             align-items: center;
             gap: 15px;
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.95);
             padding: 15px 25px;
             border-radius: 50px;
             box-shadow: 0 5px 20px rgba(0,0,0,0.2);
             z-index: 1000;
+            cursor: move;
+            transition: transform 0.2s, box-shadow 0.2s;
+            /* Standaard positie */
+            left: 50%;
+            bottom: 30px;
+            transform: translateX(-50%);
+        }
+        
+        .controls.dragging {
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            opacity: 0.9;
+            cursor: grabbing;
         }
         
         .control-btn {
@@ -130,6 +140,8 @@
             font-size: 14px;
             z-index: 1000;
             box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+            cursor: move;
+            user-select: none;
         }
         
         .nav-controls {
@@ -161,6 +173,25 @@
         body.fullscreen .controls:hover {
             opacity: 1;
         }
+        
+        /* Position indicator voor controls */
+        .position-indicator {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.6);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 999;
+            opacity: 0.5;
+            transition: opacity 0.3s;
+        }
+        
+        .position-indicator:hover {
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
@@ -170,7 +201,7 @@
         <div id="contentDisplay"></div>
     </div>
     
-    <div class="controls">
+    <div class="controls" id="controls">
         <div class="nav-controls">
             <button class="control-btn" id="prevBtn">&lt;</button>
             <button class="control-btn" id="pauseBtn">⏸</button>
@@ -183,6 +214,8 @@
             <button class="control-btn scale-btn" id="zoomInBtn">+</button>
         </div>
     </div>
+    
+    <div class="position-indicator" id="positionIndicator">Sleepbaar</div>
 
     <script>
         // Playlist
@@ -288,21 +321,30 @@
         // DOM elements
         const contentDisplay = document.getElementById('contentDisplay');
         const container = document.querySelector('.container');
+        const controls = document.getElementById('controls');
+        const scaleIndicator = document.getElementById('scaleIndicator');
+        const positionIndicator = document.getElementById('positionIndicator');
         const prevBtn = document.getElementById('prevBtn');
         const nextBtn = document.getElementById('nextBtn');
         const pauseBtn = document.getElementById('pauseBtn');
         const zoomInBtn = document.getElementById('zoomInBtn');
         const zoomOutBtn = document.getElementById('zoomOutBtn');
         const resetScaleBtn = document.getElementById('resetScaleBtn');
-        const scaleIndicator = document.getElementById('scaleIndicator');
         
         // State
         let currentIndex = 0;
         let currentElement = null;
         let scale = 1.0;
-        const minScale = 0.3;    // 30% minimum
-        const maxScale = 2.0;    // 200% maximum
-        const scaleStep = 0.01;  // 1% stapgrootte
+        const minScale = 0.3;
+        const maxScale = 2.0;
+        const scaleStep = 0.01;
+        
+        // Drag state voor controls
+        let isDragging = false;
+        let dragStartX = 0;
+        let dragStartY = 0;
+        let controlsStartX = 0;
+        let controlsStartY = 0;
         
         // Helper functies
         function getNextIndex(index) {
@@ -315,31 +357,25 @@
         
         // Update de schaal van de contentDisplay
         function updateScale() {
-            // Update transform scale van contentDisplay
             contentDisplay.style.transform = `scale(${scale})`;
-            
-            // Update ook de container schaal voor volledige pagina
             container.style.transform = `scale(${scale})`;
             
-            // Update indicator
             const percentage = Math.round(scale * 100);
             scaleIndicator.textContent = `Schaal: ${percentage}%`;
             
-            // Update knoppen state
             zoomInBtn.disabled = scale >= maxScale;
             zoomOutBtn.disabled = scale <= minScale;
             
-            // Sla schaal op in localStorage
             localStorage.setItem('playerScale', scale.toString());
             
-            console.log(`Schaal aangepast naar: ${percentage}%`);
+            console.log(`Schaal: ${percentage}%`);
         }
         
         // Zoom in
         function zoomIn() {
             if (scale < maxScale) {
                 scale = Math.min(maxScale, scale + scaleStep);
-                scale = parseFloat(scale.toFixed(2)); // Afronden op 2 decimalen
+                scale = parseFloat(scale.toFixed(2));
                 updateScale();
             }
         }
@@ -348,7 +384,7 @@
         function zoomOut() {
             if (scale > minScale) {
                 scale = Math.max(minScale, scale - scaleStep);
-                scale = parseFloat(scale.toFixed(2)); // Afronden op 2 decimalen
+                scale = parseFloat(scale.toFixed(2));
                 updateScale();
             }
         }
@@ -364,15 +400,12 @@
             currentIndex = index;
             const item = playlist[currentIndex];
             
-            // Maak display leeg
             while (contentDisplay.firstChild) {
                 contentDisplay.removeChild(contentDisplay.firstChild);
             }
             
-            // Update pauze knop
             pauseBtn.disabled = item.type !== "video";
             
-            // Maak nieuw element
             if (item.type === "video") {
                 currentElement = document.createElement('video');
                 currentElement.src = item.src;
@@ -382,14 +415,12 @@
                 currentElement.style.width = '100%';
                 currentElement.style.height = '100%';
                 
-                // Ended event
                 currentElement.onended = () => {
                     if (!item.loop) {
                         next();
                     }
                 };
                 
-                // Play/pause events
                 currentElement.addEventListener('play', () => {
                     pauseBtn.textContent = '⏸';
                 });
@@ -406,16 +437,13 @@
                 currentElement.frameBorder = "0";
                 currentElement.allow = "autoplay; fullscreen";
                 
-                // Voor iframes: zet een kleine delay om laden te garanderen
                 setTimeout(() => {
                     currentElement.focus();
                 }, 100);
             }
             
-            // Voeg toe aan display
             contentDisplay.appendChild(currentElement);
-            
-            console.log(`Loaded: ${item.title} (${item.type})`);
+            console.log(`Geladen: ${item.title} (${item.type})`);
         }
         
         // Naar volgende
@@ -450,6 +478,101 @@
             }
         }
         
+        // Controls drag functionaliteit
+        function startDrag(e) {
+            // Voorkom drag op knoppen
+            if (e.target.tagName === 'BUTTON') return;
+            
+            isDragging = true;
+            controls.classList.add('dragging');
+            
+            // Bepaal start positie
+            const rect = controls.getBoundingClientRect();
+            controlsStartX = rect.left;
+            controlsStartY = rect.top;
+            
+            // Bepak mouse/touch positie
+            dragStartX = e.clientX || e.touches[0].clientX;
+            dragStartY = e.clientY || e.touches[0].clientY;
+            
+            e.preventDefault();
+        }
+        
+        function doDrag(e) {
+            if (!isDragging) return;
+            
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+            
+            if (!clientX || !clientY) return;
+            
+            // Bereken nieuwe positie
+            const deltaX = clientX - dragStartX;
+            const deltaY = clientY - dragStartY;
+            
+            const newX = controlsStartX + deltaX;
+            const newY = controlsStartY + deltaY;
+            
+            // Pas positie aan
+            controls.style.left = `${newX}px`;
+            controls.style.top = `${newY}px`;
+            controls.style.transform = 'none';
+            
+            // Update position indicator
+            updatePositionIndicator(newX, newY);
+            
+            e.preventDefault();
+        }
+        
+        function stopDrag() {
+            if (!isDragging) return;
+            
+            isDragging = false;
+            controls.classList.remove('dragging');
+            
+            // Sla positie op
+            saveControlsPosition();
+        }
+        
+        function updatePositionIndicator(x, y) {
+            const rect = controls.getBoundingClientRect();
+            positionIndicator.textContent = `Positie: ${Math.round(x)}px, ${Math.round(y)}px`;
+        }
+        
+        function saveControlsPosition() {
+            const rect = controls.getBoundingClientRect();
+            const position = {
+                x: rect.left,
+                y: rect.top
+            };
+            localStorage.setItem('controlsPosition', JSON.stringify(position));
+        }
+        
+        function loadControlsPosition() {
+            const saved = localStorage.getItem('controlsPosition');
+            if (saved) {
+                try {
+                    const position = JSON.parse(saved);
+                    controls.style.left = `${position.x}px`;
+                    controls.style.top = `${position.y}px`;
+                    controls.style.transform = 'none';
+                    updatePositionIndicator(position.x, position.y);
+                } catch (e) {
+                    console.log('Kon opgeslagen positie niet laden:', e);
+                }
+            }
+        }
+        
+        // Reset controls positie
+        function resetControlsPosition() {
+            controls.style.left = '50%';
+            controls.style.top = 'auto';
+            controls.style.bottom = '30px';
+            controls.style.transform = 'translateX(-50%)';
+            updatePositionIndicator(window.innerWidth / 2 - controls.offsetWidth / 2, window.innerHeight - 30 - controls.offsetHeight);
+            saveControlsPosition();
+        }
+        
         // Event listeners
         prevBtn.onclick = prev;
         nextBtn.onclick = next;
@@ -458,8 +581,21 @@
         zoomOutBtn.onclick = zoomOut;
         resetScaleBtn.onclick = resetScale;
         
+        // Drag events voor controls
+        controls.addEventListener('mousedown', startDrag);
+        controls.addEventListener('touchstart', startDrag);
+        
+        document.addEventListener('mousemove', doDrag);
+        document.addEventListener('touchmove', doDrag);
+        
+        document.addEventListener('mouseup', stopDrag);
+        document.addEventListener('touchend', stopDrag);
+        
         // Double click op container voor fullscreen
         container.addEventListener('dblclick', toggleFullscreen);
+        
+        // Double click op controls om positie te resetten
+        controls.addEventListener('dblclick', resetControlsPosition);
         
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
@@ -469,7 +605,6 @@
                 e.preventDefault();
                 togglePause();
             }
-            // Zoom shortcuts: + en -
             if ((e.key === '+' || e.key === '=') && !e.shiftKey) {
                 e.preventDefault();
                 zoomIn();
@@ -478,15 +613,18 @@
                 e.preventDefault();
                 zoomOut();
             }
-            // Reset schaal met 0
             if (e.key === '0') {
                 e.preventDefault();
                 resetScale();
             }
-            // Fullscreen met F11 of F
             if (e.key === 'F11' || (e.key === 'f' && e.altKey)) {
                 e.preventDefault();
                 toggleFullscreen();
+            }
+            // Reset controls positie met R
+            if (e.key === 'r' && e.ctrlKey) {
+                e.preventDefault();
+                resetControlsPosition();
             }
         });
         
@@ -511,15 +649,22 @@
             }
         });
         
+        // Window resize - herbereken positie
+        window.addEventListener('resize', () => {
+            saveControlsPosition();
+        });
+        
         // Initialize
         function init() {
-            // Laad opgeslagen schaal of gebruik standaard
+            // Laad opgeslagen schaal
             const savedScale = localStorage.getItem('playerScale');
             if (savedScale) {
                 scale = parseFloat(savedScale);
-                // Zorg dat het binnen de grenzen valt
                 scale = Math.max(minScale, Math.min(maxScale, scale));
             }
+            
+            // Laad opgeslagen controls positie
+            loadControlsPosition();
             
             // Zet initiële schaal
             updateScale();
@@ -527,10 +672,10 @@
             // Laad eerste content
             loadContent(0);
             
-            console.log("Player geïnitialiseerd");
+            console.log("Player geïnitialiseerd met sleepbare controls");
             console.log(`Huidige schaal: ${Math.round(scale * 100)}%`);
             
-            // Focus op body voor keyboard shortcuts
+            // Focus voor keyboard shortcuts
             document.body.focus();
             document.body.tabIndex = 0;
         }
