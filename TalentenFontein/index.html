@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>(v1.1.1) Talentenfontein</title>
+    <title>(v1.1.2) Talentenfontein</title>
     <style>
         * {
             margin: 0;
@@ -44,10 +44,8 @@
             position: relative;
             transition: all 0.3s ease;
             box-shadow: 0 5px 25px rgba(0,0,0,0.1);
-            /* Standaard grootte */
             width: 1600px;
             height: 900px;
-            /* Transform origin zorgt dat het van het midden schaalt */
             transform-origin: center center;
             max-width: 100%;
             max-height: 100%;
@@ -82,7 +80,11 @@
             box-shadow: 0 5px 20px rgba(0,0,0,0.2);
             z-index: 1000;
             cursor: move;
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: box-shadow 0.2s;
+            /* Vaste grootte */
+            width: auto;
+            height: auto;
+            min-width: 390px;
             /* Standaard positie */
             left: 50%;
             bottom: 30px;
@@ -105,6 +107,7 @@
             cursor: pointer;
             border-radius: 50%;
             transition: all 0.2s;
+            flex-shrink: 0;
         }
         
         .scale-btn {
@@ -147,6 +150,7 @@
         .nav-controls {
             display: flex;
             gap: 15px;
+            flex-shrink: 0;
         }
         
         .scale-controls {
@@ -154,6 +158,7 @@
             gap: 10px;
             align-items: center;
             padding: 0 15px;
+            flex-shrink: 0;
         }
         
         /* Fullscreen mode styling */
@@ -164,33 +169,6 @@
         body.fullscreen .container {
             width: 100%;
             height: 100%;
-        }
-        
-        body.fullscreen .controls {
-            opacity: 0.7;
-        }
-        
-        body.fullscreen .controls:hover {
-            opacity: 1;
-        }
-        
-        /* Position indicator voor controls */
-        .position-indicator {
-            position: fixed;
-            bottom: 10px;
-            right: 10px;
-            background: rgba(0,0,0,0.6);
-            color: white;
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-size: 12px;
-            z-index: 999;
-            opacity: 0.5;
-            transition: opacity 0.3s;
-        }
-        
-        .position-indicator:hover {
-            opacity: 1;
         }
     </style>
 </head>
@@ -214,8 +192,6 @@
             <button class="control-btn scale-btn" id="zoomInBtn">+</button>
         </div>
     </div>
-    
-    <div class="position-indicator" id="positionIndicator">Sleepbaar</div>
 
     <script>
         // Playlist
@@ -323,7 +299,6 @@
         const container = document.querySelector('.container');
         const controls = document.getElementById('controls');
         const scaleIndicator = document.getElementById('scaleIndicator');
-        const positionIndicator = document.getElementById('positionIndicator');
         const prevBtn = document.getElementById('prevBtn');
         const nextBtn = document.getElementById('nextBtn');
         const pauseBtn = document.getElementById('pauseBtn');
@@ -355,7 +330,7 @@
             return (index - 1 + playlist.length) % playlist.length;
         }
         
-        // Update de schaal van de contentDisplay
+        // Update de schaal
         function updateScale() {
             contentDisplay.style.transform = `scale(${scale})`;
             container.style.transform = `scale(${scale})`;
@@ -367,8 +342,6 @@
             zoomOutBtn.disabled = scale <= minScale;
             
             localStorage.setItem('playerScale', scale.toString());
-            
-            console.log(`Schaal: ${percentage}%`);
         }
         
         // Zoom in
@@ -435,15 +408,9 @@
                 currentElement.style.width = '100%';
                 currentElement.style.height = '100%';
                 currentElement.frameBorder = "0";
-                currentElement.allow = "autoplay; fullscreen";
-                
-                setTimeout(() => {
-                    currentElement.focus();
-                }, 100);
             }
             
             contentDisplay.appendChild(currentElement);
-            console.log(`Geladen: ${item.title} (${item.type})`);
         }
         
         // Naar volgende
@@ -467,17 +434,6 @@
             }
         }
         
-        // Fullscreen toggle
-        function toggleFullscreen() {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(err => {
-                    console.log(`Fullscreen mislukt: ${err.message}`);
-                });
-            } else {
-                document.exitFullscreen();
-            }
-        }
-        
         // Controls drag functionaliteit
         function startDrag(e) {
             // Voorkom drag op knoppen
@@ -486,12 +442,10 @@
             isDragging = true;
             controls.classList.add('dragging');
             
-            // Bepaal start positie
             const rect = controls.getBoundingClientRect();
             controlsStartX = rect.left;
             controlsStartY = rect.top;
             
-            // Bepak mouse/touch positie
             dragStartX = e.clientX || e.touches[0].clientX;
             dragStartY = e.clientY || e.touches[0].clientY;
             
@@ -506,20 +460,16 @@
             
             if (!clientX || !clientY) return;
             
-            // Bereken nieuwe positie
             const deltaX = clientX - dragStartX;
             const deltaY = clientY - dragStartY;
             
             const newX = controlsStartX + deltaX;
             const newY = controlsStartY + deltaY;
             
-            // Pas positie aan
             controls.style.left = `${newX}px`;
             controls.style.top = `${newY}px`;
             controls.style.transform = 'none';
-            
-            // Update position indicator
-            updatePositionIndicator(newX, newY);
+            controls.style.bottom = 'auto';
             
             e.preventDefault();
         }
@@ -532,11 +482,6 @@
             
             // Sla positie op
             saveControlsPosition();
-        }
-        
-        function updatePositionIndicator(x, y) {
-            const rect = controls.getBoundingClientRect();
-            positionIndicator.textContent = `Positie: ${Math.round(x)}px, ${Math.round(y)}px`;
         }
         
         function saveControlsPosition() {
@@ -556,9 +501,9 @@
                     controls.style.left = `${position.x}px`;
                     controls.style.top = `${position.y}px`;
                     controls.style.transform = 'none';
-                    updatePositionIndicator(position.x, position.y);
+                    controls.style.bottom = 'auto';
                 } catch (e) {
-                    console.log('Kon opgeslagen positie niet laden:', e);
+                    // Do nothing
                 }
             }
         }
@@ -569,7 +514,6 @@
             controls.style.top = 'auto';
             controls.style.bottom = '30px';
             controls.style.transform = 'translateX(-50%)';
-            updatePositionIndicator(window.innerWidth / 2 - controls.offsetWidth / 2, window.innerHeight - 30 - controls.offsetHeight);
             saveControlsPosition();
         }
         
@@ -591,13 +535,10 @@
         document.addEventListener('mouseup', stopDrag);
         document.addEventListener('touchend', stopDrag);
         
-        // Double click op container voor fullscreen
-        container.addEventListener('dblclick', toggleFullscreen);
-        
         // Double click op controls om positie te resetten
         controls.addEventListener('dblclick', resetControlsPosition);
         
-        // Keyboard shortcuts
+        // Keyboard shortcuts (zonder F11)
         document.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowLeft') prev();
             if (e.key === 'ArrowRight') next();
@@ -617,15 +558,7 @@
                 e.preventDefault();
                 resetScale();
             }
-            if (e.key === 'F11' || (e.key === 'f' && e.altKey)) {
-                e.preventDefault();
-                toggleFullscreen();
-            }
-            // Reset controls positie met R
-            if (e.key === 'r' && e.ctrlKey) {
-                e.preventDefault();
-                resetControlsPosition();
-            }
+            // Geen F11 functionaliteit
         });
         
         // Mouse wheel zoom (met Ctrl/Cmd)
@@ -639,20 +572,6 @@
                 }
             }
         }, { passive: false });
-        
-        // Fullscreen change events
-        document.addEventListener('fullscreenchange', () => {
-            if (document.fullscreenElement) {
-                document.body.classList.add('fullscreen');
-            } else {
-                document.body.classList.remove('fullscreen');
-            }
-        });
-        
-        // Window resize - herbereken positie
-        window.addEventListener('resize', () => {
-            saveControlsPosition();
-        });
         
         // Initialize
         function init() {
@@ -671,13 +590,6 @@
             
             // Laad eerste content
             loadContent(0);
-            
-            console.log("Player geïnitialiseerd met sleepbare controls");
-            console.log(`Huidige schaal: ${Math.round(scale * 100)}%`);
-            
-            // Focus voor keyboard shortcuts
-            document.body.focus();
-            document.body.tabIndex = 0;
         }
         
         // Start
