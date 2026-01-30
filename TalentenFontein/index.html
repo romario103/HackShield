@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>(v1.1.8) Talentenfontein</title>
+    <title>(v1.1.6) Talentenfontein</title>
     <style>
         body {
             margin: 0;
@@ -28,9 +28,14 @@
             background: white;
             overflow: hidden;
             position: relative;
-            transition: transform 0.3s ease;
+            transition: all 0.3s ease;
             box-shadow: 0 5px 25px rgba(0,0,0,0.1);
             margin: 20px 0;
+            /* Standaard grootte */
+            width: 1600px;
+            height: 900px;
+            /* Transform origin zorgt dat het van het midden schaalt */
+            transform-origin: center center;
         }
         
         #contentDisplay video,
@@ -111,6 +116,7 @@
             color: #666;
             font-size: 14px;
             text-align: center;
+            min-width: 120px;
         }
         
         .nav-controls {
@@ -265,13 +271,9 @@
         let currentIndex = 0;
         let currentElement = null;
         let scale = 1.0;
-        const minScale = 0.3;
-        const maxScale = 2.0;
-        const scaleStep = 0.01;
-        
-        // Standaard afmetingen
-        const defaultWidth = 1600;
-        const defaultHeight = 900;
+        const minScale = 0.3;    // 30% minimum
+        const maxScale = 2.0;    // 200% maximum
+        const scaleStep = 0.01;  // 1% stapgrootte
         
         // Helper functies
         function getNextIndex(index) {
@@ -284,18 +286,12 @@
         
         // Update de schaal van de contentDisplay
         function updateScale() {
-            const newWidth = defaultWidth * scale;
-            const newHeight = defaultHeight * scale;
-            
-            // Pas de afmetingen aan
-            contentDisplay.style.width = `${newWidth}px`;
-            contentDisplay.style.height = `${newHeight}px`;
-            
-            // Update transform voor smooth schalen
+            // Update transform scale
             contentDisplay.style.transform = `scale(${scale})`;
             
             // Update indicator
-            scaleIndicator.textContent = `Schaal: ${Math.round(scale * 100)}%`;
+            const percentage = Math.round(scale * 100);
+            scaleIndicator.textContent = `Schaal: ${percentage}%`;
             
             // Update knoppen state
             zoomInBtn.disabled = scale >= maxScale;
@@ -304,14 +300,14 @@
             // Sla schaal op in localStorage
             localStorage.setItem('playerScale', scale.toString());
             
-            console.log(`Schaal aangepast naar: ${Math.round(scale * 100)}%`);
+            console.log(`Schaal aangepast naar: ${percentage}%`);
         }
         
         // Zoom in
         function zoomIn() {
             if (scale < maxScale) {
                 scale = Math.min(maxScale, scale + scaleStep);
-                scale = Math.round(scale * 10) / 10; // Afronden op 1 decimaal
+                scale = parseFloat(scale.toFixed(2)); // Afronden op 2 decimalen
                 updateScale();
             }
         }
@@ -320,7 +316,7 @@
         function zoomOut() {
             if (scale > minScale) {
                 scale = Math.max(minScale, scale - scaleStep);
-                scale = Math.round(scale * 10) / 10; // Afronden op 1 decimaal
+                scale = parseFloat(scale.toFixed(2)); // Afronden op 2 decimalen
                 updateScale();
             }
         }
@@ -466,6 +462,8 @@
             const savedScale = localStorage.getItem('playerScale');
             if (savedScale) {
                 scale = parseFloat(savedScale);
+                // Zorg dat het binnen de grenzen valt
+                scale = Math.max(minScale, Math.min(maxScale, scale));
             }
             
             // Zet initiële schaal
@@ -475,6 +473,7 @@
             loadContent(0);
             
             console.log("Player geïnitialiseerd met schaalinstellingen");
+            console.log(`Huidige schaal: ${Math.round(scale * 100)}%`);
         }
         
         // Start
