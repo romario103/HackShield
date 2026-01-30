@@ -1,25 +1,36 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>(v1.1.3) Talentenfontein</title>
+    <title>(v1.1.5) Talentenfontein</title>
     <style>
         body {
             margin: 0;
             padding: 20px;
             background: white;
             font-family: monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex-grow: 1;
+            width: 100%;
         }
         
         #contentDisplay {
-            width: 100%;
-            max-width: 1600px;
-            height: 900px;
-            margin: 0 auto;
             background: white;
             overflow: hidden;
-            background-color: white;
-            display: inline-block;
-            padding: 0;
+            position: relative;
+            transition: transform 0.3s ease;
+            box-shadow: 0 5px 25px rgba(0,0,0,0.1);
+            margin: 20px 0;
         }
         
         #contentDisplay video,
@@ -42,8 +53,10 @@
         .controls {
             display: flex;
             justify-content: center;
-            gap: 20px;
+            align-items: center;
+            gap: 15px;
             margin-top: 20px;
+            flex-wrap: wrap;
         }
         
         .control-btn {
@@ -55,39 +68,85 @@
             font-size: 24px;
             cursor: pointer;
             border-radius: 50%;
+            transition: all 0.2s;
+        }
+        
+        .scale-btn {
+            width: 45px;
+            height: 45px;
+            font-size: 18px;
+            background: #666;
         }
         
         .control-btn:hover {
             background: #555;
+            transform: scale(1.05);
+        }
+        
+        .control-btn:active {
+            transform: scale(0.95);
         }
         
         .control-btn:disabled {
             opacity: 0.3;
             cursor: not-allowed;
+            transform: none !important;
         }
         
         .type-badge {
             position: fixed;
             top: 30px;
             right: 30px;
-            padding: 5px 10px;
-            background: rgba(0,0,0,0.7);
+            padding: 8px 15px;
+            background: rgba(0,0,0,0.8);
             color: white;
             border-radius: 5px;
             font-size: 12px;
             z-index: 100;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+        }
+        
+        .scale-indicator {
+            margin: 10px 0;
+            color: #666;
+            font-size: 14px;
+            text-align: center;
+        }
+        
+        .nav-controls {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .scale-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            padding: 0 15px;
         }
     </style>
 </head>
 <body>
-    <div id="contentDisplay"></div>
-    
     <div class="type-badge" id="typeBadge"></div>
     
-    <div class="controls">
-        <button class="control-btn" id="prevBtn">&lt;</button>
-        <button class="control-btn" id="pauseBtn">⏸</button>
-        <button class="control-btn" id="nextBtn">&gt;</button>
+    <div class="container">
+        <div id="contentDisplay"></div>
+        
+        <div class="scale-indicator" id="scaleIndicator">Schaal: 100%</div>
+        
+        <div class="controls">
+            <div class="nav-controls">
+                <button class="control-btn" id="prevBtn">&lt;</button>
+                <button class="control-btn" id="pauseBtn">⏸</button>
+                <button class="control-btn" id="nextBtn">&gt;</button>
+            </div>
+            
+            <div class="scale-controls">
+                <button class="control-btn scale-btn" id="zoomOutBtn">−</button>
+                <button class="control-btn" id="resetScaleBtn">⟲</button>
+                <button class="control-btn scale-btn" id="zoomInBtn">+</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -197,10 +256,22 @@
         const nextBtn = document.getElementById('nextBtn');
         const pauseBtn = document.getElementById('pauseBtn');
         const typeBadge = document.getElementById('typeBadge');
+        const zoomInBtn = document.getElementById('zoomInBtn');
+        const zoomOutBtn = document.getElementById('zoomOutBtn');
+        const resetScaleBtn = document.getElementById('resetScaleBtn');
+        const scaleIndicator = document.getElementById('scaleIndicator');
         
         // State
         let currentIndex = 0;
         let currentElement = null;
+        let scale = 1.0;
+        const minScale = 0.3;
+        const maxScale = 2.0;
+        const scaleStep = 0.1;
+        
+        // Standaard afmetingen
+        const defaultWidth = 1600;
+        const defaultHeight = 900;
         
         // Helper functies
         function getNextIndex(index) {
@@ -209,6 +280,55 @@
         
         function getPrevIndex(index) {
             return (index - 1 + playlist.length) % playlist.length;
+        }
+        
+        // Update de schaal van de contentDisplay
+        function updateScale() {
+            const newWidth = defaultWidth * scale;
+            const newHeight = defaultHeight * scale;
+            
+            // Pas de afmetingen aan
+            contentDisplay.style.width = `${newWidth}px`;
+            contentDisplay.style.height = `${newHeight}px`;
+            
+            // Update transform voor smooth schalen
+            contentDisplay.style.transform = `scale(${scale})`;
+            
+            // Update indicator
+            scaleIndicator.textContent = `Schaal: ${Math.round(scale * 100)}%`;
+            
+            // Update knoppen state
+            zoomInBtn.disabled = scale >= maxScale;
+            zoomOutBtn.disabled = scale <= minScale;
+            
+            // Sla schaal op in localStorage
+            localStorage.setItem('playerScale', scale.toString());
+            
+            console.log(`Schaal aangepast naar: ${Math.round(scale * 100)}%`);
+        }
+        
+        // Zoom in
+        function zoomIn() {
+            if (scale < maxScale) {
+                scale = Math.min(maxScale, scale + scaleStep);
+                scale = Math.round(scale * 10) / 10; // Afronden op 1 decimaal
+                updateScale();
+            }
+        }
+        
+        // Zoom out
+        function zoomOut() {
+            if (scale > minScale) {
+                scale = Math.max(minScale, scale - scaleStep);
+                scale = Math.round(scale * 10) / 10; // Afronden op 1 decimaal
+                updateScale();
+            }
+        }
+        
+        // Reset schaal
+        function resetScale() {
+            scale = 1.0;
+            updateScale();
         }
         
         // Laad en toon content
@@ -222,7 +342,7 @@
             }
             
             // Update type badge
-            typeBadge.textContent = "HackShield"; //item.type.toUpperCase();
+            typeBadge.textContent = "HackShield";
             typeBadge.style.background = item.type === "video" 
                 ? 'rgba(76, 175, 80, 0.7)' 
                 : 'rgba(33, 150, 243, 0.7)';
@@ -262,6 +382,11 @@
                 currentElement.style.width = '100%';
                 currentElement.style.height = '100%';
                 currentElement.frameBorder = "0";
+                
+                // Voor iframes: zet een kleine delay om laden te garanderen
+                setTimeout(() => {
+                    currentElement.focus();
+                }, 100);
             }
             
             // Voeg toe aan display
@@ -295,8 +420,11 @@
         prevBtn.onclick = prev;
         nextBtn.onclick = next;
         pauseBtn.onclick = togglePause;
+        zoomInBtn.onclick = zoomIn;
+        zoomOutBtn.onclick = zoomOut;
+        resetScaleBtn.onclick = resetScale;
         
-        // Keyboard
+        // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowLeft') prev();
             if (e.key === 'ArrowRight') next();
@@ -304,10 +432,53 @@
                 e.preventDefault();
                 togglePause();
             }
+            // Zoom shortcuts: + en -
+            if ((e.key === '+' || e.key === '=') && !e.shiftKey) {
+                e.preventDefault();
+                zoomIn();
+            }
+            if (e.key === '-' || e.key === '_') {
+                e.preventDefault();
+                zoomOut();
+            }
+            // Reset schaal met 0
+            if (e.key === '0') {
+                e.preventDefault();
+                resetScale();
+            }
         });
         
+        // Mouse wheel zoom (met Ctrl/Cmd)
+        document.addEventListener('wheel', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                e.preventDefault();
+                if (e.deltaY < 0) {
+                    zoomIn();
+                } else {
+                    zoomOut();
+                }
+            }
+        }, { passive: false });
+        
+        // Initialize
+        function init() {
+            // Laad opgeslagen schaal of gebruik standaard
+            const savedScale = localStorage.getItem('playerScale');
+            if (savedScale) {
+                scale = parseFloat(savedScale);
+            }
+            
+            // Zet initiële schaal
+            updateScale();
+            
+            // Laad eerste content
+            loadContent(0);
+            
+            console.log("Player geïnitialiseerd met schaalinstellingen");
+        }
+        
         // Start
-        loadContent(0);
+        init();
     </script>
 </body>
 </html>
