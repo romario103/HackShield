@@ -1,8 +1,14 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>(v1.1.6) Talentenfontein</title>
+    <title>(v1.1.0) Talentenfontein</title>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
         body {
             margin: 0;
             padding: 20px;
@@ -11,8 +17,10 @@
             display: flex;
             flex-direction: column;
             align-items: center;
+            justify-content: center;
             min-height: 100vh;
-            overflow-x: hidden;
+            overflow: hidden;
+            position: relative;
         }
         
         .container {
@@ -20,8 +28,13 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            flex-grow: 1;
-            width: 100%;
+            width: 100vw;
+            height: 100vh;
+            padding: 20px;
+            transition: all 0.3s ease;
+            position: absolute;
+            top: 0;
+            left: 0;
         }
         
         #contentDisplay {
@@ -30,12 +43,13 @@
             position: relative;
             transition: all 0.3s ease;
             box-shadow: 0 5px 25px rgba(0,0,0,0.1);
-            margin: 20px 0;
             /* Standaard grootte */
             width: 1600px;
             height: 900px;
             /* Transform origin zorgt dat het van het midden schaalt */
             transform-origin: center center;
+            max-width: 100%;
+            max-height: 100%;
         }
         
         #contentDisplay video,
@@ -56,12 +70,19 @@
         }
         
         .controls {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
             display: flex;
             justify-content: center;
             align-items: center;
             gap: 15px;
-            margin-top: 20px;
-            flex-wrap: wrap;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px 25px;
+            border-radius: 50px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+            z-index: 1000;
         }
         
         .control-btn {
@@ -98,25 +119,17 @@
             transform: none !important;
         }
         
-        .type-badge {
+        .scale-indicator {
             position: fixed;
-            top: 30px;
-            right: 30px;
-            padding: 8px 15px;
+            top: 20px;
+            left: 20px;
             background: rgba(0,0,0,0.8);
             color: white;
+            padding: 8px 15px;
             border-radius: 5px;
-            font-size: 12px;
-            z-index: 100;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
-        }
-        
-        .scale-indicator {
-            margin: 10px 0;
-            color: #666;
             font-size: 14px;
-            text-align: center;
-            min-width: 120px;
+            z-index: 1000;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
         }
         
         .nav-controls {
@@ -130,28 +143,44 @@
             align-items: center;
             padding: 0 15px;
         }
+        
+        /* Fullscreen mode styling */
+        body.fullscreen {
+            padding: 0;
+        }
+        
+        body.fullscreen .container {
+            width: 100%;
+            height: 100%;
+        }
+        
+        body.fullscreen .controls {
+            opacity: 0.7;
+        }
+        
+        body.fullscreen .controls:hover {
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
-    <div class="type-badge" id="typeBadge"></div>
+    <div class="scale-indicator" id="scaleIndicator">Schaal: 100%</div>
     
     <div class="container">
         <div id="contentDisplay"></div>
+    </div>
+    
+    <div class="controls">
+        <div class="nav-controls">
+            <button class="control-btn" id="prevBtn">&lt;</button>
+            <button class="control-btn" id="pauseBtn">⏸</button>
+            <button class="control-btn" id="nextBtn">&gt;</button>
+        </div>
         
-        <div class="scale-indicator" id="scaleIndicator">Schaal: 100%</div>
-        
-        <div class="controls">
-            <div class="nav-controls">
-                <button class="control-btn" id="prevBtn">&lt;</button>
-                <button class="control-btn" id="pauseBtn">⏸</button>
-                <button class="control-btn" id="nextBtn">&gt;</button>
-            </div>
-            
-            <div class="scale-controls">
-                <button class="control-btn scale-btn" id="zoomOutBtn">−</button>
-                <button class="control-btn" id="resetScaleBtn">⟲</button>
-                <button class="control-btn scale-btn" id="zoomInBtn">+</button>
-            </div>
+        <div class="scale-controls">
+            <button class="control-btn scale-btn" id="zoomOutBtn">−</button>
+            <button class="control-btn" id="resetScaleBtn">⟲</button>
+            <button class="control-btn scale-btn" id="zoomInBtn">+</button>
         </div>
     </div>
 
@@ -258,10 +287,10 @@
 
         // DOM elements
         const contentDisplay = document.getElementById('contentDisplay');
+        const container = document.querySelector('.container');
         const prevBtn = document.getElementById('prevBtn');
         const nextBtn = document.getElementById('nextBtn');
         const pauseBtn = document.getElementById('pauseBtn');
-        const typeBadge = document.getElementById('typeBadge');
         const zoomInBtn = document.getElementById('zoomInBtn');
         const zoomOutBtn = document.getElementById('zoomOutBtn');
         const resetScaleBtn = document.getElementById('resetScaleBtn');
@@ -286,8 +315,11 @@
         
         // Update de schaal van de contentDisplay
         function updateScale() {
-            // Update transform scale
+            // Update transform scale van contentDisplay
             contentDisplay.style.transform = `scale(${scale})`;
+            
+            // Update ook de container schaal voor volledige pagina
+            container.style.transform = `scale(${scale})`;
             
             // Update indicator
             const percentage = Math.round(scale * 100);
@@ -337,12 +369,6 @@
                 contentDisplay.removeChild(contentDisplay.firstChild);
             }
             
-            // Update type badge
-            typeBadge.textContent = "HackShield";
-            typeBadge.style.background = item.type === "video" 
-                ? 'rgba(76, 175, 80, 0.7)' 
-                : 'rgba(33, 150, 243, 0.7)';
-            
             // Update pauze knop
             pauseBtn.disabled = item.type !== "video";
             
@@ -378,6 +404,7 @@
                 currentElement.style.width = '100%';
                 currentElement.style.height = '100%';
                 currentElement.frameBorder = "0";
+                currentElement.allow = "autoplay; fullscreen";
                 
                 // Voor iframes: zet een kleine delay om laden te garanderen
                 setTimeout(() => {
@@ -412,6 +439,17 @@
             }
         }
         
+        // Fullscreen toggle
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.log(`Fullscreen mislukt: ${err.message}`);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        }
+        
         // Event listeners
         prevBtn.onclick = prev;
         nextBtn.onclick = next;
@@ -419,6 +457,9 @@
         zoomInBtn.onclick = zoomIn;
         zoomOutBtn.onclick = zoomOut;
         resetScaleBtn.onclick = resetScale;
+        
+        // Double click op container voor fullscreen
+        container.addEventListener('dblclick', toggleFullscreen);
         
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
@@ -442,6 +483,11 @@
                 e.preventDefault();
                 resetScale();
             }
+            // Fullscreen met F11 of F
+            if (e.key === 'F11' || (e.key === 'f' && e.altKey)) {
+                e.preventDefault();
+                toggleFullscreen();
+            }
         });
         
         // Mouse wheel zoom (met Ctrl/Cmd)
@@ -455,6 +501,15 @@
                 }
             }
         }, { passive: false });
+        
+        // Fullscreen change events
+        document.addEventListener('fullscreenchange', () => {
+            if (document.fullscreenElement) {
+                document.body.classList.add('fullscreen');
+            } else {
+                document.body.classList.remove('fullscreen');
+            }
+        });
         
         // Initialize
         function init() {
@@ -472,8 +527,12 @@
             // Laad eerste content
             loadContent(0);
             
-            console.log("Player geïnitialiseerd met schaalinstellingen");
+            console.log("Player geïnitialiseerd");
             console.log(`Huidige schaal: ${Math.round(scale * 100)}%`);
+            
+            // Focus op body voor keyboard shortcuts
+            document.body.focus();
+            document.body.tabIndex = 0;
         }
         
         // Start
